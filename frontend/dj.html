@@ -61,6 +61,55 @@
             </div>
           </div>
 
+          <div class="fade-section">
+            <h3>淡入淡出设置</h3>
+            <div class="fade-controls">
+              <div class="fade-control-row">
+                <label class="fade-label">
+                  <input type="checkbox" id="fadeEnabled">
+                  启用淡入淡出
+                </label>
+              </div>
+              
+              <div class="fade-control-row">
+                <label>渐变类型</label>
+                <select id="fadeType">
+                  <option value="linear">线性 (Linear)</option>
+                  <option value="exponential">指数 (Exponential)</option>
+                  <option value="logarithmic">对数 (Logarithmic)</option>
+                  <option value="quadratic">二次方 (Quadratic)</option>
+                </select>
+              </div>
+
+              <div class="fade-control-row">
+                <label>淡入时长: <span id="fadeInValue">2.0</span> 秒</label>
+                <input type="range" id="fadeInDuration" min="0" max="10" step="0.1" value="2">
+              </div>
+
+              <div class="fade-control-row">
+                <label>淡出时长: <span id="fadeOutValue">2.0</span> 秒</label>
+                <input type="range" id="fadeOutDuration" min="0" max="10" step="0.1" value="2">
+              </div>
+
+              <div class="fade-control-row">
+                <label>预淡出提前: <span id="preFadeOutValue">3.0</span> 秒</label>
+                <input type="range" id="preFadeOutStart" min="0" max="10" step="0.1" value="3">
+              </div>
+
+              <div class="fade-control-row">
+                <label>交叉淡入淡出: <span id="crossfadeValue">1.0</span> 秒</label>
+                <input type="range" id="crossfadeDuration" min="0" max="5" step="0.1" value="1">
+              </div>
+
+              <div class="fade-status" id="fadeStatus">
+                <span class="fade-status-label">当前状态:</span>
+                <span class="fade-status-value" id="fadeStatusValue">待机</span>
+              </div>
+
+              <button id="applyFadeBtn" class="apply-btn">应用设置</button>
+            </div>
+          </div>
+
           <div class="playlist-section">
             <h3>播放列表</h3>
             <div class="playlist" id="playlist">

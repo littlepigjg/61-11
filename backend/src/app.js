@@ -63,7 +63,7 @@ channelManager.init();
 
 const audioStreamer = new AudioStreamer(channelManager);
 
-const wsServer = new WebSocketServer(config.wsPort, channelManager, ffmpegAvailable);
+const wsServer = new WebSocketServer(config.wsPort, channelManager, ffmpegAvailable, audioStreamer);
 wsServer.start();
 
 app.get('/api/channels', (req, res) => {
@@ -87,8 +87,29 @@ app.get('/api/channels/:channelId', (req, res) => {
     } : null,
     listeners: channel.listeners,
     volume: channel.volume,
-    currentIndex: channel.currentIndex
+    currentIndex: channel.currentIndex,
+    fade: channel.fade
   });
+});
+
+app.get('/api/channels/:channelId/fade', (req, res) => {
+  const fadeConfig = channelManager.getFadeConfig(req.params.channelId);
+  if (!fadeConfig) {
+    return res.status(404).json({ error: 'Channel not found' });
+  }
+  res.json(fadeConfig);
+});
+
+app.post('/api/channels/:channelId/fade', (req, res) => {
+  const result = channelManager.setFadeConfig(req.params.channelId, req.body || {});
+  if (!result.success) {
+    return res.status(400).json({ success: false, errors: result.errors });
+  }
+  res.json({ success: true, config: result.config });
+});
+
+app.get('/api/fade/default', (req, res) => {
+  res.json(channelManager.getDefaultFadeConfig());
 });
 
 app.get('/api/channels/:channelId/playlist', (req, res) => {

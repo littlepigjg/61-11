@@ -1,8 +1,9 @@
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
 const EventEmitter = require('events');
 const StreamDistributor = require('./stream-distributor');
 const ListenerManager = require('./listener-manager');
+const { generateFFmpegFadeFilters, FADE_TYPES } = require('./fade-processor');
 
 let ffmpeg = null;
 let ffmpegAvailable = false;
@@ -31,6 +32,9 @@ class AudioStreamer extends EventEmitter {
     this._isPlaying = new Map();
     this.listenerManager = new ListenerManager();
     this._connectionMap = new Map();
+    this.trackDurations = new Map();
+    this.fadeTimers = new Map();
+    this._pendingNextTrack = new Map();
 
     this.listenerManager.on('listenersChange', (channelId, count) => {
       const channel = this.channelManager.getChannel(channelId);
@@ -68,11 +72,110 @@ class AudioStreamer extends EventEmitter {
         this._startPlayback(channelId, track, position);
       }
     });
+
+    this.channelManager.on('fadeConfigChange', (channelId, fadeConfig) => {
+      const track = this.channelManager.getCurrentTrack(channelId);
+      const state = this.playbackState.get(channelId);
+      if (this._isPlaying.get(channelId) && track) {
+        const position = state ? state.position : 0;
+        this._stopPlayback(channelId, true);
+        this._startPlayback(channelId, track, position);
+      }
+      this.emit('fadeConfigChange', channelId, fadeConfig);
+    });
   }
 
-  _startPlayback(channelId, track, startPosition = 0) {
+  async _getTrackDuration(trackPath) {
+    if (this.trackDurations.has(trackPath)) {
+      return this.trackDurations.get(trackPath);
+    }
+
+    if (!ffmpegAvailable) {
+      this.trackDurations.set(trackPath, 0);
+      return 0;
+    }
+
+    try {
+      return new Promise((resolve) => {
+        const ffprobe = spawn('ffprobe', [
+          '-v', 'error',
+          '-show_entries', 'format=duration',
+          '-of', 'default=noprint_wrappers=1:nokey=1',
+          trackPath
+        ]);
+
+        let duration = '';
+        ffprobe.stdout.on('data', (data) => {
+          duration += data.toString();
+        });
+
+        ffprobe.on('close', (code) => {
+          if (code === 0) {
+            const parsedDuration = parseFloat(duration.trim());
+            if (!isNaN(parsedDuration) && parsedDuration > 0) {
+              this.trackDurations.set(trackPath, parsedDuration);
+              resolve(parsedDuration);
+            } else {
+              this.trackDurations.set(trackPath, 0);
+              resolve(0);
+            }
+          } else {
+            this.trackDurations.set(trackPath, 0);
+            resolve(0);
+          }
+        });
+
+        ffprobe.on('error', () => {
+          this.trackDurations.set(trackPath, 0);
+          resolve(0);
+        });
+      });
+    } catch (e) {
+      this.trackDurations.set(trackPath, 0);
+      return 0;
+    }
+  }
+
+  _clearFadeTimer(channelId) {
+    const timer = this.fadeTimers.get(channelId);
+    if (timer) {
+      clearTimeout(timer);
+      this.fadeTimers.delete(channelId);
+    }
+  }
+
+  _scheduleNextTrack(channelId, track, trackDuration, fadeConfig) {
+    this._clearFadeTimer(channelId);
+    this._pendingNextTrack.delete(channelId);
+
+    if (!fadeConfig || !fadeConfig.enabled || trackDuration <= 0) {
+      return;
+    }
+
+    const { fadeOutDuration, preFadeOutStart } = fadeConfig;
+    const nextTrackStartTime = Math.max(0, trackDuration - fadeOutDuration - preFadeOutStart) * 1000;
+
+    if (nextTrackStartTime <= 0) return;
+
+    const timer = setTimeout(() => {
+      if (this._isPlaying.get(channelId)) {
+        this._pendingNextTrack.set(channelId, true);
+        process.nextTick(() => {
+          if (this._isPlaying.get(channelId) && this._pendingNextTrack.get(channelId)) {
+            this.channelManager.next(channelId);
+          }
+        });
+      }
+    }, nextTrackStartTime);
+
+    this.fadeTimers.set(channelId, timer);
+  }
+
+  async _startPlayback(channelId, track, startPosition = 0) {
     const channel = this.channelManager.getChannel(channelId);
     if (!channel) return;
+
+    this._clearFadeTimer(channelId);
 
     let distributor = this.distributors.get(channelId);
     if (!distributor) {
@@ -87,14 +190,33 @@ class AudioStreamer extends EventEmitter {
       startTime: Date.now()
     });
 
+    const trackDuration = await this._getTrackDuration(track.path);
+
+    this.playbackState.set(channelId, {
+      track: track,
+      position: startPosition,
+      startTime: Date.now(),
+      duration: trackDuration
+    });
+
     if (ffmpegAvailable) {
-      this._playTrackWithFFmpeg(channelId, track, startPosition, channel.volume);
+      this._playTrackWithFFmpeg(channelId, track, startPosition, channel.volume, trackDuration, channel.fade);
     } else {
-      this._playTrackRaw(channelId, track);
+      this._playTrackRaw(channelId, track, trackDuration, channel.fade);
+    }
+
+    this.emit('fadeStateChange', channelId, {
+      type: 'fadeIn',
+      duration: channel.fade.fadeInDuration,
+      trackDuration: trackDuration
+    });
+
+    if (startPosition === 0 && channel.fade && channel.fade.enabled) {
+      this._scheduleNextTrack(channelId, track, trackDuration, channel.fade);
     }
   }
 
-  _playTrackWithFFmpeg(channelId, track, startPosition, volume) {
+  _playTrackWithFFmpeg(channelId, track, startPosition, volume, trackDuration = 0, fadeConfig = null) {
     const distributor = this.distributors.get(channelId);
     if (!distributor) return;
     if (!this._isPlaying.get(channelId)) return;
@@ -116,8 +238,28 @@ class AudioStreamer extends EventEmitter {
         command = command.seekInput(startPosition);
       }
 
-      const volumeFilter = `volume=${volume}`;
-      command = command.audioFilters(volumeFilter);
+      const filters = [];
+
+      filters.push(`volume=${volume}`);
+
+      if (fadeConfig && fadeConfig.enabled) {
+        const fadeFilters = generateFFmpegFadeFilters(fadeConfig, trackDuration, startPosition);
+        for (const filter of fadeFilters) {
+          if (filter.options) {
+            let filterStr = `${filter.filter}=`;
+            const opts = [];
+            for (const [key, value] of Object.entries(filter.options)) {
+              opts.push(`${key}=${value}`);
+            }
+            filterStr += opts.join(':');
+            filters.push(filterStr);
+          }
+        }
+      }
+
+      if (filters.length > 0) {
+        command = command.audioFilters(filters);
+      }
 
       command.on('error', (err) => {
         if (err.message && (err.message.includes('SIGKILL') || err.message.includes('Output stream'))) {
@@ -125,6 +267,8 @@ class AudioStreamer extends EventEmitter {
         }
         if (!this._isPlaying.get(channelId)) return;
         if (!this.distributors.has(channelId)) return;
+        this._clearFadeTimer(channelId);
+        this._pendingNextTrack.delete(channelId);
         process.nextTick(() => {
           if (this._isPlaying.get(channelId)) {
             this.channelManager.next(channelId);
@@ -135,6 +279,8 @@ class AudioStreamer extends EventEmitter {
       command.on('end', () => {
         if (!this._isPlaying.get(channelId)) return;
         if (!this.distributors.has(channelId)) return;
+        this._clearFadeTimer(channelId);
+        this._pendingNextTrack.delete(channelId);
         process.nextTick(() => {
           if (this._isPlaying.get(channelId)) {
             this.channelManager.next(channelId);
@@ -152,6 +298,17 @@ class AudioStreamer extends EventEmitter {
         if (state) {
           const bitrateBytesPerSec = 128 * 1024 / 8;
           state.position = startPosition + (bytesRead / bitrateBytesPerSec);
+          
+          if (fadeConfig && fadeConfig.enabled && trackDuration > 0) {
+            const fadeOutStart = trackDuration - fadeConfig.fadeOutDuration - fadeConfig.preFadeOutStart;
+            if (state.position >= fadeOutStart && state.position < (fadeOutStart + 0.1)) {
+              this.emit('fadeStateChange', channelId, {
+                type: 'fadeOut',
+                duration: fadeConfig.fadeOutDuration,
+                remainingTime: trackDuration - state.position
+              });
+            }
+          }
         }
       });
 
@@ -162,7 +319,7 @@ class AudioStreamer extends EventEmitter {
     }
   }
 
-  _playTrackRaw(channelId, track) {
+  _playTrackRaw(channelId, track, trackDuration = 0, fadeConfig = null) {
     const distributor = this.distributors.get(channelId);
     if (!distributor) return;
     if (!this._isPlaying.get(channelId)) return;
@@ -177,6 +334,8 @@ class AudioStreamer extends EventEmitter {
       readStream.on('end', () => {
         if (!this._isPlaying.get(channelId)) return;
         if (!this.distributors.has(channelId)) return;
+        this._clearFadeTimer(channelId);
+        this._pendingNextTrack.delete(channelId);
         process.nextTick(() => {
           if (this._isPlaying.get(channelId)) {
             this.channelManager.next(channelId);
@@ -187,6 +346,8 @@ class AudioStreamer extends EventEmitter {
       readStream.on('error', (err) => {
         console.error(`Read stream error for channel ${channelId}:`, err.message);
         if (!this._isPlaying.get(channelId)) return;
+        this._clearFadeTimer(channelId);
+        this._pendingNextTrack.delete(channelId);
         process.nextTick(() => {
           if (this._isPlaying.get(channelId)) {
             this.channelManager.next(channelId);
@@ -195,7 +356,34 @@ class AudioStreamer extends EventEmitter {
       });
 
       const writable = distributor.getWritableStream();
-      readStream.pipe(writable, { end: false });
+      
+      const ext = track.filename.split('.').pop().toLowerCase();
+      if (ext === 'wav' && fadeConfig && fadeConfig.enabled && trackDuration > 0) {
+        const { FadeTransform } = require('./fade-processor');
+        const channel = this.channelManager.getChannel(channelId);
+        const fadeTransform = new FadeTransform(
+          fadeConfig,
+          trackDuration,
+          channel ? channel.sampleRate : 44100,
+          2,
+          16
+        );
+        fadeTransform.setBaseVolume(channel ? channel.volume : 1.0);
+        
+        let bytesRead = 0;
+        fadeTransform.on('data', (chunk) => {
+          bytesRead += chunk.length;
+          const state = this.playbackState.get(channelId);
+          if (state) {
+            const bitrateBytesPerSec = 44100 * 2 * 2;
+            state.position = bytesRead / bitrateBytesPerSec;
+          }
+        });
+        
+        readStream.pipe(fadeTransform).pipe(writable, { end: false });
+      } else {
+        readStream.pipe(writable, { end: false });
+      }
 
     } catch (err) {
       console.error(`Failed to play track for channel ${channelId}:`, err.message);
@@ -241,6 +429,9 @@ class AudioStreamer extends EventEmitter {
 
   _stopPlayback(channelId, keepState = false) {
     this._isPlaying.set(channelId, false);
+
+    this._clearFadeTimer(channelId);
+    this._pendingNextTrack.delete(channelId);
 
     this._cleanupProcess(channelId);
     this._cleanupReadStream(channelId);

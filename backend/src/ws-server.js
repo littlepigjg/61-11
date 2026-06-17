@@ -1,10 +1,11 @@
 const WebSocket = require('ws');
 
 class WebSocketServer {
-  constructor(port, channelManager, ffmpegAvailable = false) {
+  constructor(port, channelManager, ffmpegAvailable = false, audioStreamer = null) {
     this.port = port;
     this.channelManager = channelManager;
     this.ffmpegAvailable = ffmpegAvailable;
+    this.audioStreamer = audioStreamer;
     this.wss = null;
     this.clients = new Map();
   }
@@ -89,6 +90,24 @@ class WebSocketServer {
       });
     });
 
+    this.channelManager.on('fadeConfigChange', (channelId, fadeConfig) => {
+      this.broadcastToChannel(channelId, {
+        type: 'fadeConfigChange',
+        channelId,
+        fade: fadeConfig
+      });
+    });
+
+    if (this.audioStreamer) {
+      this.audioStreamer.on('fadeStateChange', (channelId, state) => {
+        this.broadcastToChannel(channelId, {
+          type: 'fadeStateChange',
+          channelId,
+          fadeState: state
+        });
+      });
+    }
+
     console.log(`WebSocket server running on port ${this.port}`);
   }
 
@@ -113,6 +132,9 @@ class WebSocketServer {
         break;
       case 'volume':
         this.channelManager.setVolume(channelId, params?.volume);
+        break;
+      case 'setFade':
+        this.channelManager.setFadeConfig(channelId, params || {});
         break;
     }
   }
@@ -156,7 +178,8 @@ class WebSocketServer {
         filename: t.filename
       })),
       currentIndex: channel.currentIndex,
-      ffmpegAvailable: this.ffmpegAvailable
+      ffmpegAvailable: this.ffmpegAvailable,
+      fade: channel.fade
     }));
   }
 

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const EventEmitter = require('events');
+const { DEFAULT_FADE_CONFIG, validateFadeConfig, mergeFadeConfig } = require('./fade-processor');
 
 class ChannelManager extends EventEmitter {
   constructor(config) {
@@ -8,6 +9,7 @@ class ChannelManager extends EventEmitter {
     this.config = config;
     this.channels = new Map();
     this.musicBaseDir = path.resolve(config.musicBaseDir);
+    this.defaultFadeConfig = config.defaultFade || DEFAULT_FADE_CONFIG;
   }
 
   init() {
@@ -34,7 +36,8 @@ class ChannelManager extends EventEmitter {
         isPlaying: false,
         volume: 1.0,
         listeners: 0,
-        mode: 'sequential'
+        mode: 'sequential',
+        fade: mergeFadeConfig(this.defaultFadeConfig, channelConfig.fade || {})
       };
 
       this.channels.set(channel.id, channel);
@@ -180,6 +183,30 @@ class ChannelManager extends EventEmitter {
     const channel = this.channels.get(channelId);
     if (!channel) return null;
     return channel.currentTrack;
+  }
+
+  getFadeConfig(channelId) {
+    const channel = this.channels.get(channelId);
+    if (!channel) return null;
+    return { ...channel.fade };
+  }
+
+  setFadeConfig(channelId, fadeConfig) {
+    const channel = this.channels.get(channelId);
+    if (!channel) return { success: false, errors: ['频道不存在'] };
+
+    const errors = validateFadeConfig(fadeConfig);
+    if (errors.length > 0) {
+      return { success: false, errors };
+    }
+
+    channel.fade = mergeFadeConfig(channel.fade, fadeConfig);
+    this.emit('fadeConfigChange', channelId, channel.fade);
+    return { success: true, config: channel.fade };
+  }
+
+  getDefaultFadeConfig() {
+    return { ...this.defaultFadeConfig };
   }
 }
 

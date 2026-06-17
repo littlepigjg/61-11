@@ -2,6 +2,14 @@
   "port": 3000,
   "wsPort": 3001,
   "musicBaseDir": "./music",
+  "defaultFade": {
+    "enabled": true,
+    "fadeInDuration": 2.0,
+    "fadeOutDuration": 2.0,
+    "crossfadeDuration": 1.0,
+    "fadeType": "linear",
+    "preFadeOutStart": 3.0
+  },
   "channels": [
     {
       "id": "pop",
@@ -9,7 +17,15 @@
       "description": "流行金曲频道",
       "dir": "pop",
       "bitrate": "128k",
-      "sampleRate": 44100
+      "sampleRate": 44100,
+      "fade": {
+        "enabled": true,
+        "fadeInDuration": 2.0,
+        "fadeOutDuration": 2.0,
+        "crossfadeDuration": 1.0,
+        "fadeType": "linear",
+        "preFadeOutStart": 3.0
+      }
     },
     {
       "id": "classic",
@@ -17,7 +33,15 @@
       "description": "古典音乐频道",
       "dir": "classic",
       "bitrate": "128k",
-      "sampleRate": 44100
+      "sampleRate": 44100,
+      "fade": {
+        "enabled": true,
+        "fadeInDuration": 3.0,
+        "fadeOutDuration": 3.0,
+        "crossfadeDuration": 1.5,
+        "fadeType": "exponential",
+        "preFadeOutStart": 4.0
+      }
     },
     {
       "id": "electronic",
@@ -25,7 +49,15 @@
       "description": "电子音乐频道",
       "dir": "electronic",
       "bitrate": "192k",
-      "sampleRate": 44100
+      "sampleRate": 44100,
+      "fade": {
+        "enabled": true,
+        "fadeInDuration": 1.5,
+        "fadeOutDuration": 1.5,
+        "crossfadeDuration": 0.8,
+        "fadeType": "quadratic",
+        "preFadeOutStart": 2.0
+      }
     }
   ]
 }

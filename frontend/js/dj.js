@@ -5,6 +5,7 @@ class DJPanel {
     this.playlist = [];
     this.currentIndex = -1;
     this.isPlaying = false;
+    this.fadeConfig = null;
 
     this.channelList = document.getElementById('channelList');
     this.djChannelName = document.getElementById('djChannelName');
@@ -17,6 +18,19 @@ class DJPanel {
     this.djListenerCount = document.getElementById('djListenerCount');
     this.playlistCount = document.getElementById('playlistCount');
     this.playlistEl = document.getElementById('playlist');
+
+    this.fadeEnabled = document.getElementById('fadeEnabled');
+    this.fadeType = document.getElementById('fadeType');
+    this.fadeInDuration = document.getElementById('fadeInDuration');
+    this.fadeOutDuration = document.getElementById('fadeOutDuration');
+    this.preFadeOutStart = document.getElementById('preFadeOutStart');
+    this.crossfadeDuration = document.getElementById('crossfadeDuration');
+    this.fadeInValue = document.getElementById('fadeInValue');
+    this.fadeOutValue = document.getElementById('fadeOutValue');
+    this.preFadeOutValue = document.getElementById('preFadeOutValue');
+    this.crossfadeValue = document.getElementById('crossfadeValue');
+    this.applyFadeBtn = document.getElementById('applyFadeBtn');
+    this.fadeStatusValue = document.getElementById('fadeStatusValue');
 
     this.init();
   }
@@ -109,6 +123,12 @@ class DJPanel {
       case 'volumeChange':
         this.handleVolumeChange(data);
         break;
+      case 'fadeConfigChange':
+        this.handleFadeConfigChange(data);
+        break;
+      case 'fadeStateChange':
+        this.handleFadeStateChange(data);
+        break;
     }
   }
 
@@ -134,6 +154,11 @@ class DJPanel {
     this.updatePlayPauseButton();
     this.updateStatusBadge();
     this.channelVolume.value = Math.round((data.volume || 1) * 100);
+
+    if (data.fade) {
+      this.fadeConfig = data.fade;
+      this.updateFadeUI(data.fade);
+    }
   }
 
   handleTrackChange(data) {
@@ -163,6 +188,70 @@ class DJPanel {
 
   handleVolumeChange(data) {
     this.channelVolume.value = Math.round(data.volume * 100);
+  }
+
+  handleFadeConfigChange(data) {
+    if (data.fade) {
+      this.fadeConfig = data.fade;
+      this.updateFadeUI(data.fade);
+    }
+  }
+
+  handleFadeStateChange(data) {
+    if (data.fadeState) {
+      const { type, duration } = data.fadeState;
+      this.fadeStatusValue.classList.remove('fading-in', 'fading-out');
+      
+      if (type === 'fadeIn') {
+        this.fadeStatusValue.textContent = `淡入中 (${duration}s)`;
+        this.fadeStatusValue.classList.add('fading-in');
+      } else if (type === 'fadeOut') {
+        this.fadeStatusValue.textContent = `淡出中 (${duration}s)`;
+        this.fadeStatusValue.classList.add('fading-out');
+      }
+
+      setTimeout(() => {
+        this.fadeStatusValue.classList.remove('fading-in', 'fading-out');
+        this.fadeStatusValue.textContent = '播放中';
+      }, duration * 1000);
+    }
+  }
+
+  updateFadeUI(fadeConfig) {
+    this.fadeEnabled.checked = fadeConfig.enabled;
+    this.fadeType.value = fadeConfig.fadeType;
+    this.fadeInDuration.value = fadeConfig.fadeInDuration;
+    this.fadeOutDuration.value = fadeConfig.fadeOutDuration;
+    this.preFadeOutStart.value = fadeConfig.preFadeOutStart;
+    this.crossfadeDuration.value = fadeConfig.crossfadeDuration;
+    
+    this.fadeInValue.textContent = fadeConfig.fadeInDuration.toFixed(1);
+    this.fadeOutValue.textContent = fadeConfig.fadeOutDuration.toFixed(1);
+    this.preFadeOutValue.textContent = fadeConfig.preFadeOutStart.toFixed(1);
+    this.crossfadeValue.textContent = fadeConfig.crossfadeDuration.toFixed(1);
+  }
+
+  collectFadeConfig() {
+    return {
+      enabled: this.fadeEnabled.checked,
+      fadeType: this.fadeType.value,
+      fadeInDuration: parseFloat(this.fadeInDuration.value),
+      fadeOutDuration: parseFloat(this.fadeOutDuration.value),
+      preFadeOutStart: parseFloat(this.preFadeOutStart.value),
+      crossfadeDuration: parseFloat(this.crossfadeDuration.value)
+    };
+  }
+
+  applyFadeConfig() {
+    if (!this.currentChannel) return;
+    
+    const config = this.collectFadeConfig();
+    this.sendControl('setFade', config);
+    
+    this.applyFadeBtn.textContent = '已应用 ✓';
+    setTimeout(() => {
+      this.applyFadeBtn.textContent = '应用设置';
+    }, 1500);
   }
 
   updatePlayPauseButton() {
@@ -279,6 +368,26 @@ class DJPanel {
     this.channelVolume.addEventListener('input', (e) => {
       if (!this.currentChannel) return;
       this.setVolume(parseInt(e.target.value));
+    });
+
+    this.fadeInDuration.addEventListener('input', (e) => {
+      this.fadeInValue.textContent = parseFloat(e.target.value).toFixed(1);
+    });
+
+    this.fadeOutDuration.addEventListener('input', (e) => {
+      this.fadeOutValue.textContent = parseFloat(e.target.value).toFixed(1);
+    });
+
+    this.preFadeOutStart.addEventListener('input', (e) => {
+      this.preFadeOutValue.textContent = parseFloat(e.target.value).toFixed(1);
+    });
+
+    this.crossfadeDuration.addEventListener('input', (e) => {
+      this.crossfadeValue.textContent = parseFloat(e.target.value).toFixed(1);
+    });
+
+    this.applyFadeBtn.addEventListener('click', () => {
+      this.applyFadeConfig();
     });
   }
 }
