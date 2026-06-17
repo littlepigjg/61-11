@@ -1,0 +1,31 @@
+{
+  "port": 3000,
+  "wsPort": 3001,
+  "musicBaseDir": "./music",
+  "channels": [
+    {
+      "id": "pop",
+      "name": "流行音乐",
+      "description": "流行金曲频道",
+      "dir": "pop",
+      "bitrate": "128k",
+      "sampleRate": 44100
+    },
+    {
+      "id": "classic",
+      "name": "古典音乐",
+      "description": "古典音乐频道",
+      "dir": "classic",
+      "bitrate": "128k",
+      "sampleRate": 44100
+    },
+    {
+      "id": "electronic",
+      "name": "电子音乐",
+      "description": "电子音乐频道",
+      "dir": "electronic",
+      "bitrate": "192k",
+      "sampleRate": 44100
+    }
+  ]
+}

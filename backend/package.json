@@ -1,0 +1,16 @@
+{
+  "name": "radio-broadcast-server",
+  "version": "1.0.0",
+  "description": "内网音频广播服务",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "fluent-ffmpeg": "^2.1.2",
+    "ws": "^8.14.2",
+    "cors": "^2.8.5"
+  }
+}

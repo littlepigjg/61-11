@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>内网音频广播 - DJ 控制台</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>🎛️ DJ 控制台</h1>
+      <nav>
+        <a href="index.html" class="nav-link">播放器</a>
+        <a href="dj.html" class="nav-link active">DJ 控制台</a>
+      </nav>
+    </header>
+
+    <main class="main">
+      <section class="channels-section">
+        <h2>选择频道</h2>
+        <div class="channel-list" id="channelList">
+        </div>
+      </section>
+
+      <section class="dj-panel">
+        <div class="dj-card">
+          <div class="dj-header">
+            <h2 id="djChannelName">选择频道</h2>
+            <span class="status-badge" id="statusBadge">停止</span>
+          </div>
+
+          <div class="now-playing">
+            <div class="np-label">正在播放</div>
+            <div class="np-title" id="nowPlaying">--</div>
+          </div>
+
+          <div class="dj-controls">
+            <button id="prevBtn" class="control-btn">⏮</button>
+            <button id="playPauseBtn" class="control-btn play-btn-large">▶</button>
+            <button id="nextBtn" class="control-btn">⏭</button>
+          </div>
+
+          <div class="volume-section">
+            <label>频道音量</label>
+            <div class="volume-control large">
+              <span>🔈</span>
+              <input type="range" id="channelVolume" min="0" max="100" value="100">
+              <span>🔊</span>
+            </div>
+          </div>
+
+          <div class="stats-row">
+            <div class="stat-box">
+              <span class="stat-label">在线收听</span>
+              <span class="stat-value large" id="djListenerCount">0</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">播放列表</span>
+              <span class="stat-value large" id="playlistCount">0</span>
+            </div>
+          </div>
+
+          <div class="playlist-section">
+            <h3>播放列表</h3>
+            <div class="playlist" id="playlist">
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/dj.js"></script>
+</body>
+</html>

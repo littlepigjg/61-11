@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>内网音频广播 - 播放器</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>🎵 内网音频广播</h1>
+      <nav>
+        <a href="index.html" class="nav-link active">播放器</a>
+        <a href="dj.html" class="nav-link">DJ 控制台</a>
+      </nav>
+    </header>
+
+    <main class="main">
+      <section class="channels-section">
+        <h2>频道列表</h2>
+        <div class="channel-list" id="channelList">
+        </div>
+      </section>
+
+      <section class="player-section">
+        <div class="player-card">
+          <div class="channel-info">
+            <h2 id="currentChannelName">选择一个频道开始收听</h2>
+            <p id="currentTrack" class="track-name">--</p>
+          </div>
+
+          <div class="audio-container">
+            <audio id="audioPlayer" preload="none">
+              您的浏览器不支持音频播放。
+            </audio>
+          </div>
+
+          <div class="player-controls">
+            <button id="playBtn" class="control-btn" disabled>
+              <span class="play-icon">▶</span>
+            </button>
+            <div class="volume-control">
+              <span>🔊</span>
+              <input type="range" id="volumeSlider" min="0" max="100" value="80">
+            </div>
+          </div>
+
+          <div class="stats">
+            <div class="stat-item">
+              <span class="stat-label">在线收听</span>
+              <span class="stat-value" id="listenerCount">0</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/player.js"></script>
+</body>
+</html>
